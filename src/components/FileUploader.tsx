@@ -9,6 +9,20 @@ interface FileUploaderProps {
 const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
     const [files, setFiles] = useState<File[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [accountName, setAccountName] = useState('');
+    const [existingAccounts, setExistingAccounts] = useState<{ id: number, name: string }[]>([]);
+
+    React.useEffect(() => {
+        const fetchAccounts = async () => {
+            try {
+                const response = await axios.get('http://localhost:3001/api/accounts');
+                setExistingAccounts(response.data);
+            } catch (error) {
+                console.error('Erro ao buscar contas:', error);
+            }
+        };
+        fetchAccounts();
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -22,15 +36,21 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
 
     const uploadFiles = async () => {
         if (files.length === 0) return;
+        if (!accountName.trim()) {
+            alert('Por favor, selecione ou digite o nome de uma conta bancária.');
+            return;
+        }
         setIsUploading(true);
 
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
+        formData.append('accountName', accountName);
 
         try {
             const response = await axios.post('http://localhost:3001/api/upload', formData);
             onDataReceived(response.data);
             setFiles([]);
+            setAccountName('');
         } catch (error) {
             console.error('Erro no upload:', error);
             alert('Erro ao processar arquivos. Verifique se o servidor está rodando.');
@@ -41,6 +61,24 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
 
     return (
         <div className="glass-card">
+            <div className="mb-6">
+                <label className="block text-sm font-medium mb-2 opacity-70">Conta Bancária</label>
+                <div className="relative">
+                    <input
+                        list="accounts-list"
+                        value={accountName}
+                        onChange={(e) => setAccountName(e.target.value)}
+                        placeholder="Selecione ou digite o nome da conta (ex: Nubank)"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 outline-none focus:border-primary transition-colors"
+                    />
+                    <datalist id="accounts-list">
+                        {existingAccounts.map(acc => (
+                            <option key={acc.id} value={acc.name} />
+                        ))}
+                    </datalist>
+                </div>
+            </div>
+
             <div
                 className="upload-zone"
                 onClick={() => document.getElementById('file-input')?.click()}

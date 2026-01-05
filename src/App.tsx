@@ -1,10 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FileUploader from './components/FileUploader';
 import Dashboard from './components/Dashboard';
 import './styles/dashboard.css';
+import { Plus } from 'lucide-react';
 
 function App() {
   const [data, setData] = useState<{ transactions: any[], insights: any } | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/data');
+        const result = await response.json();
+        if (result.transactions && result.transactions.length > 0) {
+          setData(result);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleDataReceived = (newData: any) => {
+    setData(newData);
+    setShowUpload(false);
+  };
 
   const updateTransactions = (newTransactions: any[]) => {
     if (data) {
@@ -27,38 +52,66 @@ function App() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="dashboard-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+        <p className="text-xl animate-pulse">Carregando seus dados financeiros...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-container">
-      <header className="header">
+      <header className="header glass-card" style={{ marginBottom: '3rem', padding: '1rem 2rem' }}>
         <div>
-          <h1 className="title">Antigravity Finance</h1>
-          <p className="text-muted">Seu assistente financeiro inteligente</p>
+          <h1 className="title" style={{ margin: 0 }}>Antigravity Finance</h1>
+          <p className="text-muted" style={{ margin: 0 }}>Seu assistente financeiro inteligente</p>
+        </div>
+        <div className="flex gap-4 items-center">
+          {data && !showUpload && (
+            <button
+              onClick={() => setShowUpload(true)}
+              className="btn-secondary flex-center gap-2 py-2"
+            >
+              <Plus size={18} /> Novo Upload
+            </button>
+          )}
+          <div className="text-right">
+            <p className="text-xs text-muted">Status do Sistema</p>
+            <p className="text-sm font-bold text-success flex items-center gap-1">
+              <span className="w-2 h-2 bg-success rounded-full animate-pulse"></span>
+              Online
+            </p>
+          </div>
         </div>
       </header>
 
-      {!data ? (
+      {(!data || showUpload) ? (
         <div className="max-w-xl mx-auto mt-12">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Comece sua análise agora</h2>
-            <p className="text-muted">Faça upload de seus extratos e deixe que nossa IA organize tudo para você em segundos.</p>
+            <h2 className="text-4xl font-black mb-4 tracking-tight">
+              {data ? 'Adicionar novos comprovantes' : 'Comece sua análise agora'}
+            </h2>
+            <p className="text-muted text-lg">Faça upload de seus extratos e deixe que nossa IA organize tudo para você em segundos.</p>
+            {data && (
+              <button
+                onClick={() => setShowUpload(false)}
+                className="mt-4 text-primary hover:underline text-sm"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)' }}
+              >
+                Voltar para o Dashboard
+              </button>
+            )}
           </div>
-          <FileUploader onDataReceived={setData} />
+          <FileUploader onDataReceived={handleDataReceived} />
         </div>
       ) : (
-        <>
-          <Dashboard
-            transactions={data.transactions}
-            insights={data.insights}
-            onUpdateTransactions={updateTransactions}
-            onRefreshInsights={refreshInsights}
-          />
-          <button
-            onClick={() => setData(null)}
-            className="mt-8 px-6 py-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            Limpar e Novo Upload
-          </button>
-        </>
+        <Dashboard
+          transactions={data.transactions}
+          insights={data.insights}
+          onUpdateTransactions={updateTransactions}
+          onRefreshInsights={refreshInsights}
+        />
       )}
     </div>
   );

@@ -14,9 +14,9 @@ export async function categorizeTransactions(rawInputs: any[]) {
     const prompt = `
     Você é um assistente financeiro. Abaixo estão extratos brutos de bancos ou faturas (texto ou metadados).
     Extraia todas as transações individuais.
-    Para cada transação, identifique: data, descrição, valor (positivo para entrada, negativo para saída), e categoria.
+    Para cada transação, identifique: data, descrição, valor (positivo para entrada, negativo para saída), categoria e o arquivo de origem (source_file).
     Categorias permitidas: Alimentação, Transporte, Moradia, Lazer, Saúde, Educação, Compras, Outros.
-    Retorne APENAS um JSON no formato: { "transactions": [ { "date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "category": "...", "type": "entrada/saida" } ] }
+    Retorne APENAS um JSON no formato: { "transactions": [ { "date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "category": "...", "type": "entrada/saida", "source_file": "..." } ] }
 
     Dados Brutos:
     ${JSON.stringify(rawInputs)}
