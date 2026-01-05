@@ -1,6 +1,6 @@
-# Antigravity 🚀
+# Kairos Finance 🚀
 
-Agente de Análise de Dados Financeiros inteligente que processa extratos bancários e faturas de cartão de crédito em diversos formatos (PDF, CSV, XLSX, Imagem) usando IA para categorizar transações e gerar dashboards de gastos.
+Agente de Análise de Dados Financeiros inteligente que processa extratos bancários e faturas de cartão de crédito em diversos formatos (PDF, CSV, XLSX, Imagem) usando IA para categorizar transações e gerar dashboards de gastos. Desenvolvido utilizando Antigravity. 
 
 ## 📋 Pré-requisitos
 
