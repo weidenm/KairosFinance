@@ -9,6 +9,7 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 interface Transaction {
+    id?: number;
     date: string;
     description: string;
     amount: number;
@@ -24,22 +25,25 @@ interface Insights {
 interface DashboardProps {
     transactions: Transaction[];
     insights: Insights;
+    categories: { id: number, name: string }[];
     onUpdateTransactions: (transactions: Transaction[]) => void;
+    onUpdateCategories: () => void;
 }
 
 const COLORS = ['#6366f1', '#22d3ee', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#94a3b8'];
 
-const CATEGORIES = ['Alimentação', 'Transporte', 'Moradia', 'Lazer', 'Saúde', 'Educação', 'Compras', 'Outros'];
-
 const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = ({
-    transactions, insights, onUpdateTransactions, onRefreshInsights
+    transactions, insights, categories, onUpdateTransactions, onUpdateCategories, onRefreshInsights
 }) => {
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingIdx, setEditingIdx] = useState<number | null>(null);
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [editingId, setEditingId] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
     const [editCategory, setEditCategory] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
 
     React.useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -69,12 +73,24 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
         .filter(t => t.type === 'entrada')
         .reduce((sum, t) => sum + t.amount, 0);
 
-    const handleEditSave = (idx: number) => {
-        const newTransactions = [...transactions];
-        newTransactions[idx].description = editValue;
-        newTransactions[idx].category = editCategory;
-        onUpdateTransactions(newTransactions);
-        setEditingIdx(null);
+    const handleEditSave = async (id: number) => {
+        try {
+            await fetch(`http://localhost:3001/api/transactions/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description: editValue, category: editCategory })
+            });
+
+            // Update local state via callback to update the dashboard immediately
+            const newTransactions = transactions.map(t =>
+                t.id === id ? { ...t, description: editValue, category: editCategory } : t
+            );
+            onUpdateTransactions(newTransactions);
+            setEditingId(null);
+        } catch (error) {
+            console.error('Erro ao salvar transação:', error);
+            alert('Erro ao salvar alterações no banco de dados.');
+        }
     };
 
     const handleRefresh = async () => {
@@ -131,6 +147,9 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                     </button>
                     <button onClick={exportToPDF} className="btn-secondary flex-center gap-2">
                         <Download size={16} /> PDF
+                    </button>
+                    <button onClick={() => setIsCategoryModalOpen(true)} className="btn-secondary flex-center gap-2">
+                        <Edit2 size={16} /> Categorias
                     </button>
                 </div>
             </div>
@@ -220,7 +239,7 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                         <h3 className="text-lg font-bold">Insights de Consumo</h3>
                     </div>
                     <ul className="space-y-3">
-                        {insights.consumption.map((item, i) => (
+                        {(insights?.consumption || []).map((item, i) => (
                             <li key={i} className="text-sm border-l-2 border-accent pl-3 py-1">{item}</li>
                         ))}
                     </ul>
@@ -231,7 +250,7 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                         <h3 className="text-lg font-bold">Dicas de Organização</h3>
                     </div>
                     <ul className="space-y-3">
-                        {insights.tips.map((item, i) => (
+                        {(insights?.tips || []).map((item, i) => (
                             <li key={i} className="text-sm border-l-2 border-success pl-3 py-1">{item}</li>
                         ))}
                     </ul>
@@ -252,10 +271,10 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
 
                         <div className="modal-body">
                             <div className="space-y-3">
-                                {filteredTransactions.map((t, idx) => (
-                                    <div key={idx} className="transaction-item hover:bg-white/5 rounded-lg border-none px-4">
+                                {filteredTransactions.map((t) => (
+                                    <div key={t.id} className="transaction-item hover:bg-white/5 rounded-lg border-none px-4">
                                         <div className="flex-1">
-                                            {editingIdx === idx ? (
+                                            {editingId === t.id ? (
                                                 <div className="flex flex-col gap-2 mb-1">
                                                     <input
                                                         autoFocus
@@ -269,12 +288,12 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                                                             value={editCategory}
                                                             onChange={(e) => setEditCategory(e.target.value)}
                                                         >
-                                                            {CATEGORIES.map(cat => (
-                                                                <option key={cat} value={cat}>{cat}</option>
+                                                            {categories.map(cat => (
+                                                                <option key={cat.id} value={cat.name}>{cat.name}</option>
                                                             ))}
                                                         </select>
-                                                        <button onClick={() => handleEditSave(idx)} className="text-success text-xs font-bold">Salvar</button>
-                                                        <button onClick={() => setEditingIdx(null)} className="text-muted text-xs">Cancelar</button>
+                                                        <button onClick={() => t.id && handleEditSave(t.id)} className="text-success text-xs font-bold">Salvar</button>
+                                                        <button onClick={() => setEditingId(null)} className="text-muted text-xs">Cancelar</button>
                                                     </div>
                                                 </div>
                                             ) : (
@@ -282,9 +301,11 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                                                     <p className="font-bold">{t.description}</p>
                                                     <button
                                                         onClick={() => {
-                                                            setEditingIdx(idx);
-                                                            setEditValue(t.description);
-                                                            setEditCategory(t.category);
+                                                            if (t.id) {
+                                                                setEditingId(t.id);
+                                                                setEditValue(t.description);
+                                                                setEditCategory(t.category);
+                                                            }
                                                         }}
                                                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:text-accent"
                                                     >
@@ -297,6 +318,94 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                                         <p className={`amount ${t.type === 'saida' ? 'negative' : 'positive'}`}>
                                             {t.type === 'saida' ? '-' : '+'} R$ {Math.abs(t.amount).toLocaleString('pt-BR')}
                                         </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isCategoryModalOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content glass-card max-w-md w-full">
+                        <div className="flex-between mb-6">
+                            <h3 className="text-xl font-bold">Gerenciar Categorias</h3>
+                            <button onClick={() => setIsCategoryModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="modal-body">
+                            <div className="flex gap-2 mb-6">
+                                <input
+                                    className="bg-white/10 border border-white/20 rounded px-3 py-2 flex-1 outline-none text-sm"
+                                    placeholder="Nova categoria..."
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                />
+                                <button
+                                    onClick={async () => {
+                                        if (!newCategoryName.trim()) return;
+                                        await fetch('http://localhost:3001/api/categories', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ name: newCategoryName })
+                                        });
+                                        setNewCategoryName('');
+                                        onUpdateCategories();
+                                    }}
+                                    className="bg-primary px-4 py-2 rounded-lg text-sm font-bold"
+                                >
+                                    Adicionar
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {categories.map(cat => (
+                                    <div key={cat.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                                        {editingCategoryId === cat.id ? (
+                                            <input
+                                                autoFocus
+                                                className="bg-white/10 border border-white/20 rounded px-2 py-1 flex-1 text-sm outline-none"
+                                                value={newCategoryName}
+                                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                                onBlur={async () => {
+                                                    await fetch(`http://localhost:3001/api/categories/${cat.id}`, {
+                                                        method: 'PUT',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ name: newCategoryName })
+                                                    });
+                                                    setEditingCategoryId(null);
+                                                    setNewCategoryName('');
+                                                    onUpdateCategories();
+                                                }}
+                                            />
+                                        ) : (
+                                            <span className="text-sm">{cat.name}</span>
+                                        )}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingCategoryId(cat.id);
+                                                    setNewCategoryName(cat.name);
+                                                }}
+                                                className="text-muted hover:text-accent"
+                                            >
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (confirm('Tem certeza que deseja excluir esta categoria?')) {
+                                                        await fetch(`http://localhost:3001/api/categories/${cat.id}`, { method: 'DELETE' });
+                                                        onUpdateCategories();
+                                                    }
+                                                }}
+                                                className="text-muted hover:text-danger"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

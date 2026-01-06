@@ -28,11 +28,84 @@ app.get('/api/accounts', (req, res) => {
 app.get('/api/data', (req, res) => {
     try {
         const transactions = db.prepare('SELECT * FROM transactions ORDER BY date DESC').all();
+        const lastCreatedAt = db.prepare('SELECT MAX(created_at) as max_date FROM ai_insights').get() as { max_date: string } | undefined;
         const insights = {
-            consumption: db.prepare("SELECT content FROM ai_insights WHERE type = 'consumption'").all().map((i: any) => i.content),
-            tips: db.prepare("SELECT content FROM ai_insights WHERE type = 'tip'").all().map((i: any) => i.content)
+            consumption: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'consumption' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : [],
+            tips: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'tip' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : []
         };
-        res.json({ transactions, insights });
+        const categories = db.prepare('SELECT * FROM categories ORDER BY name').all();
+        res.json({ transactions, insights, categories });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/categories', (req, res) => {
+    try {
+        const categories = db.prepare('SELECT * FROM categories ORDER BY name').all();
+        res.json(categories);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/categories', (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ error: 'Nome da categoria não fornecido.' });
+        const info = db.prepare('INSERT INTO categories (name) VALUES (?)').run(name);
+        res.json({ id: info.lastInsertRowid, name });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/categories/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ error: 'Nome da categoria não fornecido.' });
+        db.prepare('UPDATE categories SET name = ? WHERE id = ?').run(name, id);
+        res.json({ id, name });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/categories/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+        res.json({ success: true });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/check-duplicates', (req, res) => {
+    try {
+        const { filenames, accountName } = req.body;
+        if (!filenames || !accountName) return res.status(400).json({ error: 'Parâmetros ausentes.' });
+
+        const account = db.prepare('SELECT id FROM accounts WHERE name = ?').get(accountName) as { id: number } | undefined;
+        if (!account) return res.json({ duplicates: [] });
+
+        const placeholders = filenames.map(() => '?').join(',');
+        const duplicates = db.prepare(`SELECT DISTINCT source_file FROM transactions WHERE account_id = ? AND source_file IN (${placeholders})`)
+            .all(account.id, ...filenames) as { source_file: string }[];
+
+        res.json({ duplicates: duplicates.map(d => d.source_file) });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/transactions/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        const { description, category } = req.body;
+        db.prepare('UPDATE transactions SET description = ?, category = ? WHERE id = ?').run(description, category, id);
+        res.json({ id, description, category });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
@@ -41,7 +114,7 @@ app.get('/api/data', (req, res) => {
 app.post('/api/upload', upload.array('files'), async (req, res) => {
     try {
         const files = req.files as Express.Multer.File[];
-        const { accountName } = req.body;
+        const { accountName, overwrite } = req.body;
 
         if (!files || files.length === 0) {
             return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
@@ -58,6 +131,15 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
             account = { id: info.lastInsertRowid as number };
         }
 
+        // If overwrite is requested, delete old records first
+        if (overwrite === 'true' || overwrite === true) {
+            const filenames = files.map(f => f.originalname);
+            const placeholders = filenames.map(() => '?').join(',');
+            db.prepare(`DELETE FROM transactions WHERE account_id = ? AND source_file IN (${placeholders})`).run(account.id, ...filenames);
+            // Also clean up orphan insights if we want, but usually insights are per upload session.
+            // For now, focus on transactions as requested.
+        }
+
         const allTransactions = [];
         for (const file of files) {
             const transactions = await processFile(file);
@@ -66,7 +148,8 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
             allTransactions.push(...transactionsWithFile);
         }
 
-        const categorizedTransactions = await categorizeTransactions(allTransactions);
+        const allowedCategories = db.prepare('SELECT name FROM categories').all().map((c: any) => c.name);
+        const categorizedTransactions = await categorizeTransactions(allTransactions, allowedCategories);
 
         // Save transactions to DB
         const insertTx = db.prepare('INSERT INTO transactions (account_id, date, description, amount, category, type, source_file) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -77,16 +160,19 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         });
         transaction(categorizedTransactions);
 
-        const insights = await analyzeSpending(categorizedTransactions);
-
-        // Save insights to DB (categorized ones)
-        const insertInsight = db.prepare('INSERT INTO ai_insights (content, type) VALUES (?, ?)');
-        insights.consumption.forEach((c: string) => insertInsight.run(c, 'consumption'));
-        insights.tips.forEach((t: string) => insertInsight.run(t, 'tip'));
+        // Fetch full state to ensure frontend remains in sync and doesn't crash
+        const savedTransactions = db.prepare('SELECT * FROM transactions ORDER BY date DESC').all();
+        const lastCreatedAt = db.prepare('SELECT MAX(created_at) as max_date FROM ai_insights').get() as { max_date: string } | undefined;
+        const insights = {
+            consumption: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'consumption' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : [],
+            tips: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'tip' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : []
+        };
+        const categories = db.prepare('SELECT * FROM categories ORDER BY name').all();
 
         res.json({
-            transactions: categorizedTransactions,
-            insights: insights
+            transactions: savedTransactions,
+            insights: insights,
+            categories: categories
         });
     } catch (error: any) {
         console.error('Erro no upload:', error);
@@ -96,11 +182,23 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
 
 app.post('/api/analyze', async (req, res) => {
     try {
-        const { transactions } = req.body;
-        if (!transactions || !Array.isArray(transactions)) {
-            return res.status(400).json({ error: 'Transações não fornecidas.' });
+        const transactions = db.prepare('SELECT * FROM transactions').all();
+        if (!transactions || transactions.length === 0) {
+            return res.status(400).json({ error: 'Nenhuma transação encontrada para análise.' });
         }
+
         const insights = await analyzeSpending(transactions);
+
+        // Save insights to DB (without deleting old ones to keep history)
+        // We use a single transaction to ensure they all get the same created_at
+        const insertInsight = db.prepare('INSERT INTO ai_insights (content, type) VALUES (?, ?)');
+        const insertMany = db.transaction((consumption: string[], tips: string[]) => {
+            consumption.forEach((c: string) => insertInsight.run(c, 'consumption'));
+            tips.forEach((t: string) => insertInsight.run(t, 'tip'));
+        });
+
+        insertMany(insights.consumption, insights.tips);
+
         res.json(insights);
     } catch (error: any) {
         console.error('Erro na análise:', error);

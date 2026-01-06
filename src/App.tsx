@@ -5,30 +5,32 @@ import './styles/dashboard.css';
 import { Plus } from 'lucide-react';
 
 function App() {
-  const [data, setData] = useState<{ transactions: any[], insights: any } | null>(null);
+  const [data, setData] = useState<{ transactions: any[], insights: any, categories: any[] } | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/data');
-        const result = await response.json();
-        if (result.transactions && result.transactions.length > 0) {
-          setData(result);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/data');
+      const result = await response.json();
+      if (result.transactions && result.transactions.length >= 0) {
+        setData(result);
       }
-    };
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
   const handleDataReceived = (newData: any) => {
     setData(newData);
     setShowUpload(false);
+    fetchData(); // Refresh to get updated categories if any
   };
 
   const updateTransactions = (newTransactions: any[]) => {
@@ -41,9 +43,7 @@ function App() {
     if (!data) return;
     try {
       const response = await fetch('http://localhost:3001/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactions: data.transactions })
+        method: 'POST'
       });
       const newInsights = await response.json();
       setData({ ...data, insights: newInsights });
@@ -109,7 +109,9 @@ function App() {
         <Dashboard
           transactions={data.transactions}
           insights={data.insights}
+          categories={data.categories || []}
           onUpdateTransactions={updateTransactions}
+          onUpdateCategories={fetchData}
           onRefreshInsights={refreshInsights}
         />
       )}

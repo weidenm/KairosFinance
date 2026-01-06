@@ -34,17 +34,43 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
         setFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const uploadFiles = async () => {
+    const uploadFiles = async (overwrite: boolean = false) => {
         if (files.length === 0) return;
         if (!accountName.trim()) {
             alert('Por favor, selecione ou digite o nome de uma conta bancária.');
             return;
         }
+
+        // Only check for duplicates if we're not already in an overwrite flow
+        if (!overwrite) {
+            try {
+                const checkResponse = await axios.post('http://localhost:3001/api/check-duplicates', {
+                    filenames: files.map(f => f.name),
+                    accountName
+                });
+
+                if (checkResponse.data.duplicates && checkResponse.data.duplicates.length > 0) {
+                    const duplicateNames = checkResponse.data.duplicates.join(', ');
+                    const confirm = window.confirm(
+                        `Os seguintes arquivos já foram importados para esta conta: ${duplicateNames}.\n\n` +
+                        `Deseja apagar as transações existentes desses arquivos e importá-las novamente?`
+                    );
+                    if (!confirm) return;
+                    return uploadFiles(true); // Retry with overwrite
+                }
+            } catch (error) {
+                console.error('Erro ao verificar duplicatas:', error);
+            }
+        }
+
         setIsUploading(true);
 
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
         formData.append('accountName', accountName);
+        if (overwrite) {
+            formData.append('overwrite', 'true');
+        }
 
         try {
             const response = await axios.post('http://localhost:3001/api/upload', formData);
@@ -112,7 +138,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
                         ))}
                     </div>
                     <button
-                        onClick={uploadFiles}
+                        onClick={() => uploadFiles()}
                         disabled={isUploading}
                         className="w-full mt-6 py-3 bg-primary rounded-xl font-bold hover:bg-primary-hover transition-colors disabled:opacity-50"
                     >
