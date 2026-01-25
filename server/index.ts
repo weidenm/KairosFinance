@@ -27,7 +27,12 @@ app.get('/api/accounts', (req, res) => {
 
 app.get('/api/data', (req, res) => {
     try {
-        const transactions = db.prepare('SELECT * FROM transactions ORDER BY date DESC').all();
+        const transactions = db.prepare(`
+            SELECT t.*, a.name as account_name 
+            FROM transactions t 
+            LEFT JOIN accounts a ON t.account_id = a.id 
+            ORDER BY t.date DESC
+        `).all();
         const lastCreatedAt = db.prepare('SELECT MAX(created_at) as max_date FROM ai_insights').get() as { max_date: string } | undefined;
         const insights = {
             consumption: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'consumption' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : [],
@@ -100,6 +105,30 @@ app.post('/api/check-duplicates', (req, res) => {
     }
 });
 
+app.delete('/api/transactions/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+        res.json({ success: true, id });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/transactions/bulk-delete', (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids)) {
+            return res.status(400).json({ error: 'Lista de IDs inválida.' });
+        }
+        const placeholders = ids.map(() => '?').join(',');
+        db.prepare(`DELETE FROM transactions WHERE id IN (${placeholders})`).run(...ids);
+        res.json({ success: true, count: ids.length });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.put('/api/transactions/:id', (req, res) => {
     try {
         const { id } = req.params;
@@ -161,7 +190,12 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         transaction(categorizedTransactions);
 
         // Fetch full state to ensure frontend remains in sync and doesn't crash
-        const savedTransactions = db.prepare('SELECT * FROM transactions ORDER BY date DESC').all();
+        const savedTransactions = db.prepare(`
+            SELECT t.*, a.name as account_name 
+            FROM transactions t 
+            LEFT JOIN accounts a ON t.account_id = a.id 
+            ORDER BY t.date DESC
+        `).all();
         const lastCreatedAt = db.prepare('SELECT MAX(created_at) as max_date FROM ai_insights').get() as { max_date: string } | undefined;
         const insights = {
             consumption: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'consumption' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : [],
@@ -206,6 +240,10 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`Servidor rodando na porta ${port}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(port, () => {
+        console.log(`Servidor rodando na porta ${port}`);
+    });
+}
+
+export default app;

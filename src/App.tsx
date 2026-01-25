@@ -64,7 +64,7 @@ function App() {
     <div className="dashboard-container">
       <header className="header glass-card" style={{ marginBottom: '3rem', padding: '1rem 2rem' }}>
         <div>
-          <h1 className="title" style={{ margin: 0 }}>Antigravity Finance</h1>
+          <h1 className="title" style={{ margin: 0 }}>Kairos Finance</h1>
           <p className="text-muted" style={{ margin: 0 }}>Seu assistente financeiro inteligente</p>
         </div>
         <div className="flex gap-4 items-center">

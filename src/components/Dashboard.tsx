@@ -3,7 +3,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { Download, Edit2, TrendingDown, Lightbulb, X } from 'lucide-react';
+import { Download, Edit2, TrendingDown, Lightbulb, X, Calendar, Trash2, Building2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -15,6 +15,7 @@ interface Transaction {
     amount: number;
     category: string;
     type: 'entrada' | 'saida';
+    account_name?: string;
 }
 
 interface Insights {
@@ -45,6 +46,73 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
     const [newCategoryName, setNewCategoryName] = useState('');
     const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
 
+    // Get unique months from transactions for the filter
+    const availableMonths = React.useMemo(() => {
+        const months = transactions.map(t => {
+            if (t.date.includes('-')) {
+                const [year, month] = t.date.split('-');
+                return `${year}-${month}`;
+            } else {
+                const [day, month, year] = t.date.split('/');
+                return `${year}-${month}`;
+            }
+        });
+        return Array.from(new Set(months)).filter(m => !m.includes('undefined')).sort().reverse();
+    }, [transactions]);
+
+    const [selectedMonth, setSelectedMonth] = useState<string>(
+        availableMonths.length > 0 ? availableMonths[0] : ''
+    );
+
+    const [selectedBank, setSelectedBank] = useState<string>('');
+
+    // Extract unique banks from transactions
+    const availableBanks = React.useMemo(() => {
+        const banks = transactions.map(t => t.account_name || 'Desconhecido');
+        return Array.from(new Set(banks)).sort();
+    }, [transactions]);
+
+    const filteredByMonthAndBankTransactions = React.useMemo(() => {
+        let filtered = transactions;
+
+        if (selectedMonth) {
+            filtered = filtered.filter(t => {
+                if (t.date.includes('-')) {
+                    const [year, month] = t.date.split('-');
+                    return `${year}-${month}` === selectedMonth;
+                } else {
+                    const [, month, year] = t.date.split('/');
+                    return `${year}-${month}` === selectedMonth;
+                }
+            });
+        }
+
+        if (selectedBank) {
+            filtered = filtered.filter(t => (t.account_name || 'Desconhecido') === selectedBank);
+        }
+
+        return filtered;
+    }, [transactions, selectedMonth, selectedBank]);
+
+    const previousBalance = React.useMemo(() => {
+        if (!selectedMonth) return 0;
+        return transactions.reduce((acc, t) => {
+            let tMonth;
+            if (t.date.includes('-')) {
+                const [year, month] = t.date.split('-');
+                tMonth = `${year}-${month}`;
+            } else {
+                const [day, month, year] = t.date.split('/');
+                tMonth = `${year}-${month}`;
+            }
+
+            if (tMonth < selectedMonth) {
+                return acc + (t.type === 'entrada' ? t.amount : -Math.abs(t.amount));
+            }
+            return acc;
+        }, 0);
+    }, [transactions, selectedMonth]);
+
     React.useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setIsModalOpen(false);
@@ -53,7 +121,7 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
         return () => window.removeEventListener('keydown', handleEsc);
     }, []);
 
-    const categoryTotals = transactions.reduce((acc: any, curr: Transaction) => {
+    const categoryTotals = filteredByMonthAndBankTransactions.reduce((acc: any, curr: Transaction) => {
         if (curr.type === 'saida') {
             acc[curr.category] = (acc[curr.category] || 0) + Math.abs(curr.amount);
         }
@@ -65,11 +133,11 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
         value: categoryTotals[cat]
     })).sort((a, b) => b.value - a.value);
 
-    const totalExpense = transactions
+    const totalExpense = filteredByMonthAndBankTransactions
         .filter(t => t.type === 'saida')
         .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
-    const totalIncome = transactions
+    const totalIncome = filteredByMonthAndBankTransactions
         .filter(t => t.type === 'entrada')
         .reduce((sum, t) => sum + t.amount, 0);
 
@@ -99,21 +167,52 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
         setIsRefreshing(false);
     };
 
+    const handleDelete = async (id: number) => {
+        if (!confirm('Tem certeza que deseja excluir esta transação?')) return;
+        try {
+            await fetch(`http://localhost:3001/api/transactions/${id}`, {
+                method: 'DELETE'
+            });
+            onUpdateTransactions(transactions.filter(t => t.id !== id));
+        } catch (error) {
+            console.error('Erro ao excluir transação:', error);
+            alert('Erro ao excluir do banco de dados.');
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const ids = filteredTransactionsForDetails.map(t => t.id).filter(id => id !== undefined) as number[];
+        if (ids.length === 0) return;
+        if (!confirm(`Tem certeza que deseja excluir as ${ids.length} transações filtradas?`)) return;
+
+        try {
+            await fetch('http://localhost:3001/api/transactions/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            });
+            onUpdateTransactions(transactions.filter(t => !ids.includes(t.id as number)));
+        } catch (error) {
+            console.error('Erro ao excluir transações em lote:', error);
+            alert('Erro ao excluir do banco de dados.');
+        }
+    };
+
     const exportToExcel = () => {
-        const ws = XLSX.utils.json_to_sheet(transactions);
+        const ws = XLSX.utils.json_to_sheet(filteredByMonthAndBankTransactions);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Transações");
-        XLSX.writeFile(wb, "Relatorio_Financeiro.xlsx");
+        XLSX.writeFile(wb, `Relatorio_Financeiro_${selectedMonth || 'Geral'}_${selectedBank || 'Todos_Bancos'}.xlsx`);
     };
 
     const exportToPDF = () => {
         const doc = new jsPDF() as any;
-        doc.text("Relatório Financeiro - Antigravity", 14, 15);
+        doc.text(`Relatório Financeiro (${selectedMonth || 'Geral'} - ${selectedBank || 'Todos os Bancos'}) - Kairos Finance`, 14, 15);
 
         const tableColumn = ["Data", "Descrição", "Categoria", "Tipo", "Valor"];
         const tableRows: any[] = [];
 
-        transactions.forEach(t => {
+        filteredByMonthAndBankTransactions.forEach(t => {
             const data = [
                 t.date,
                 t.description,
@@ -125,7 +224,7 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
         });
 
         doc.autoTable(tableColumn, tableRows, { startY: 20 });
-        doc.save("Relatorio_Financeiro.pdf");
+        doc.save(`Relatorio_Financeiro_${selectedMonth || 'Geral'}_${selectedBank || 'Todos_Bancos'}.pdf`);
     };
 
     const openDetails = (category: string | null = null) => {
@@ -133,15 +232,50 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
         setIsModalOpen(true);
     };
 
-    const filteredTransactions = selectedCategory
-        ? transactions.filter(t => t.category === selectedCategory)
-        : transactions;
+    const filteredTransactionsForDetails = selectedCategory
+        ? filteredByMonthAndBankTransactions.filter(t => t.category === selectedCategory)
+        : filteredByMonthAndBankTransactions;
 
     return (
         <div className="dashboard-content">
             <div className="flex-between mb-6">
                 <h2 className="text-xl font-bold">Resumo Financeiro</h2>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 mr-2">
+                        <Calendar size={16} className="text-primary" />
+                        <select
+                            className="bg-transparent border-none outline-none text-sm font-medium cursor-pointer"
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                        >
+                            <option value="" className="bg-slate-800">Todos os Meses</option>
+                            {availableMonths.map(month => {
+                                const [year, m] = month.split('-');
+                                const date = new Date(parseInt(year), parseInt(m) - 1);
+                                const monthName = date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+                                return (
+                                    <option key={month} value={month} className="bg-slate-800">
+                                        {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 mr-2">
+                        <Building2 size={16} className="text-secondary" />
+                        <select
+                            className="bg-transparent border-none outline-none text-sm font-medium cursor-pointer"
+                            value={selectedBank}
+                            onChange={(e) => setSelectedBank(e.target.value)}
+                        >
+                            <option value="" className="bg-slate-800">Todos os Bancos</option>
+                            {availableBanks.map(bank => (
+                                <option key={bank} value={bank} className="bg-slate-800">
+                                    {bank}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                     <button onClick={exportToExcel} className="btn-secondary flex-center gap-2">
                         <Download size={16} /> Excel
                     </button>
@@ -154,19 +288,29 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                 </div>
             </div>
 
-            <div className="stats-grid">
-                <div className="glass-card clickable" onClick={() => openDetails()}>
-                    <p className="text-muted text-sm mb-1">Total Entradas</p>
-                    <h2 className="text-2xl font-bold text-success">R$ {totalIncome.toLocaleString('pt-BR')}</h2>
+            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                <div className="glass-card">
+                    <p className="text-muted text-sm mb-1">Saldo Anterior</p>
+                    <h2 className="text-2xl font-bold" style={{ color: previousBalance >= 0 ? 'var(--text-main)' : 'var(--danger)' }}>
+                        R$ {previousBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h2>
                 </div>
                 <div className="glass-card clickable" onClick={() => openDetails()}>
-                    <p className="text-muted text-sm mb-1">Total Saídas</p>
-                    <h2 className="text-2xl font-bold text-danger">R$ {totalExpense.toLocaleString('pt-BR')}</h2>
+                    <p className="text-muted text-sm mb-1">Entradas no Mês</p>
+                    <h2 className="text-2xl font-bold text-success">
+                        R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h2>
+                </div>
+                <div className="glass-card clickable" onClick={() => openDetails()}>
+                    <p className="text-muted text-sm mb-1">Saídas no Mês</p>
+                    <h2 className="text-2xl font-bold text-danger">
+                        R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h2>
                 </div>
                 <div className="glass-card">
                     <p className="text-muted text-sm mb-1">Saldo Atual</p>
-                    <h2 className="text-2xl font-bold" style={{ color: totalIncome - totalExpense >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                        R$ {(totalIncome - totalExpense).toLocaleString('pt-BR')}
+                    <h2 className="text-2xl font-bold" style={{ color: previousBalance + totalIncome - totalExpense >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                        R$ {(previousBalance + totalIncome - totalExpense).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h2>
                 </div>
             </div>
@@ -264,14 +408,23 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                             <h3 className="text-xl font-bold">
                                 {selectedCategory ? `Detalhes: ${selectedCategory}` : 'Todas as Transações'}
                             </h3>
-                            <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full">
-                                <X size={20} />
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleBulkDelete}
+                                    className="btn-danger flex-center gap-2 text-xs py-1.5 px-3"
+                                    title="Excluir todas as transações filtradas"
+                                >
+                                    <Trash2 size={14} /> Excluir Filtrados
+                                </button>
+                                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full">
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="modal-body">
                             <div className="space-y-3">
-                                {filteredTransactions.map((t) => (
+                                {filteredTransactionsForDetails.map((t) => (
                                     <div key={t.id} className="transaction-item hover:bg-white/5 rounded-lg border-none px-4">
                                         <div className="flex-1">
                                             {editingId === t.id ? (
@@ -308,8 +461,16 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                                                             }
                                                         }}
                                                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:text-accent"
+                                                        title="Editar"
                                                     >
                                                         <Edit2 size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => t.id && handleDelete(t.id)}
+                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:text-danger"
+                                                        title="Excluir"
+                                                    >
+                                                        <Trash2 size={14} />
                                                     </button>
                                                 </div>
                                             )}
