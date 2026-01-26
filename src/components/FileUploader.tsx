@@ -111,14 +111,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
             >
                 <Upload className="mx-auto mb-4" size={48} color="var(--primary)" />
                 <h3 className="text-xl font-bold mb-2">Arraste seus comprovantes ou clique aqui</h3>
-                <p className="text-muted">Suporta PDF, CSV, XLSX e Imagens</p>
+                <p className="text-muted">Suporta PDF, CSV, XLSX, OFX e Imagens</p>
                 <input
                     id="file-input"
                     type="file"
                     multiple
                     hidden
                     onChange={handleFileChange}
-                    accept=".pdf,.csv,.xlsx,image/*"
+                    accept=".pdf,.csv,.xlsx,.ofx,image/*"
                 />
             </div>
 

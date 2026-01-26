@@ -6,12 +6,14 @@ import * as xlsx from 'xlsx';
 export async function processFile(file: Express.Multer.File): Promise<any[]> {
     const { mimetype, buffer, originalname } = file;
 
-    if (mimetype === 'application/pdf') {
+    if (mimetype === 'application/pdf' || originalname.endsWith('.pdf')) {
         return processPDF(buffer);
     } else if (mimetype === 'text/csv' || originalname.endsWith('.csv')) {
         return processCSV(buffer);
     } else if (mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || originalname.endsWith('.xlsx')) {
         return processExcel(buffer);
+    } else if (originalname.endsWith('.ofx') || mimetype === 'application/x-ofx' || mimetype === 'application/octet-stream') {
+        return processOFX(buffer);
     } else if (mimetype.startsWith('image/')) {
         return processImage(buffer);
     } else {
@@ -19,8 +21,15 @@ export async function processFile(file: Express.Multer.File): Promise<any[]> {
     }
 }
 
+async function processOFX(buffer: Buffer): Promise<any[]> {
+    const content = buffer.toString('utf-8');
+    return [{ rawText: content, source: 'ofx' }];
+}
+
 async function processPDF(buffer: Buffer): Promise<any[]> {
-    const data = await pdfParse(buffer);
+    // Some versions of pdf-parse in ESM require .default
+    const parse = typeof pdfParse === 'function' ? pdfParse : pdfParse.default;
+    const data = await parse(buffer);
     // Simplificado para envio direto ao GPT para extração estruturada
     return [{ rawText: data.text, source: 'pdf' }];
 }
