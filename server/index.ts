@@ -33,11 +33,7 @@ app.get('/api/data', (req, res) => {
             LEFT JOIN accounts a ON t.account_id = a.id 
             ORDER BY t.date DESC
         `).all();
-        const lastCreatedAt = db.prepare('SELECT MAX(created_at) as max_date FROM ai_insights').get() as { max_date: string } | undefined;
-        const insights = {
-            consumption: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'consumption' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : [],
-            tips: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'tip' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : []
-        };
+        const insights = db.prepare("SELECT * FROM ai_insights ORDER BY created_at DESC").all();
         const categories = db.prepare('SELECT * FROM categories ORDER BY name').all();
         res.json({ transactions, insights, categories });
     } catch (error: any) {
@@ -108,7 +104,18 @@ app.post('/api/check-duplicates', (req, res) => {
 app.delete('/api/transactions/:id', (req, res) => {
     try {
         const { id } = req.params;
-        db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+        // Find the period before deleting
+        const tx = db.prepare('SELECT date FROM transactions WHERE id = ?').get(id) as { date: string } | undefined;
+        if (tx) {
+            const period = tx.date.includes('-') ? tx.date.substring(0, 7) : `${tx.date.split('/')[2]}-${tx.date.split('/')[1]}`;
+            db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+
+            // Check if month is empty
+            const remaining = db.prepare('SELECT count(*) as count FROM transactions WHERE (date LIKE ? OR date LIKE ?)').get(`${period}-%`, `%/${period.split('-')[1]}/${period.split('-')[0]}`) as { count: number };
+            if (remaining.count === 0) {
+                db.prepare('DELETE FROM ai_insights WHERE period = ?').run(period);
+            }
+        }
         res.json({ success: true, id });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -121,8 +128,21 @@ app.post('/api/transactions/bulk-delete', (req, res) => {
         if (!ids || !Array.isArray(ids)) {
             return res.status(400).json({ error: 'Lista de IDs inválida.' });
         }
+
+        // Find periods affected
         const placeholders = ids.map(() => '?').join(',');
+        const periods = db.prepare(`SELECT DISTINCT SUBSTR(date, 1, 7) as period FROM transactions WHERE id IN (${placeholders}) AND date LIKE '____-__%'`).all(...ids) as { period: string }[];
+
         db.prepare(`DELETE FROM transactions WHERE id IN (${placeholders})`).run(...ids);
+
+        // Cleanup empty months
+        for (const { period } of periods) {
+            const remaining = db.prepare("SELECT count(*) as count FROM transactions WHERE date LIKE ?").get(`${period}-%`) as { count: number };
+            if (remaining.count === 0) {
+                db.prepare('DELETE FROM ai_insights WHERE period = ?').run(period);
+            }
+        }
+
         res.json({ success: true, count: ids.length });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -177,8 +197,42 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
             allTransactions.push(...transactionsWithFile);
         }
 
+        // Fetch historical category mappings for context
+        const historicalMappings = db.prepare(`
+            SELECT description, category, COUNT(*) as count 
+            FROM transactions 
+            GROUP BY description, category 
+            HAVING count > 1
+            ORDER BY count DESC 
+            LIMIT 100
+        `).all();
+
         const allowedCategories = db.prepare('SELECT name FROM categories').all().map((c: any) => c.name);
-        const categorizedTransactions = await categorizeTransactions(allTransactions, allowedCategories);
+        const categorizedTransactions = await categorizeTransactions(allTransactions, allowedCategories, historicalMappings);
+
+        // Check for potential duplicates in the DB
+        const confirmedUnique = req.body.confirmedUnique === 'true' || req.body.confirmedUnique === true;
+        const potentialDuplicates: any[] = [];
+
+        if (!confirmedUnique) {
+            for (const tx of categorizedTransactions) {
+                const existing = db.prepare(`
+                    SELECT * FROM transactions 
+                    WHERE date = ? AND amount = ? AND description = ? AND account_id = ?
+                `).get(tx.date, tx.amount, tx.description, account.id);
+
+                if (existing) {
+                    potentialDuplicates.push({ ...tx, account_name: accountName });
+                }
+            }
+        }
+
+        if (potentialDuplicates.length > 0 && !confirmedUnique) {
+            return res.json({
+                potentialDuplicates,
+                message: 'Algumas transações parecem ser duplicadas. Deseja continuar?'
+            });
+        }
 
         // Save transactions to DB
         const insertTx = db.prepare('INSERT INTO transactions (account_id, date, description, amount, category, type, source_file) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -196,11 +250,7 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
             LEFT JOIN accounts a ON t.account_id = a.id 
             ORDER BY t.date DESC
         `).all();
-        const lastCreatedAt = db.prepare('SELECT MAX(created_at) as max_date FROM ai_insights').get() as { max_date: string } | undefined;
-        const insights = {
-            consumption: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'consumption' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : [],
-            tips: lastCreatedAt?.max_date ? db.prepare("SELECT content FROM ai_insights WHERE type = 'tip' AND created_at = ?").all(lastCreatedAt.max_date).map((i: any) => i.content) : []
-        };
+        const insights = db.prepare("SELECT * FROM ai_insights ORDER BY created_at DESC").all();
         const categories = db.prepare('SELECT * FROM categories ORDER BY name').all();
 
         res.json({
@@ -216,24 +266,54 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
 
 app.post('/api/analyze', async (req, res) => {
     try {
-        const transactions = db.prepare('SELECT * FROM transactions').all();
-        if (!transactions || transactions.length === 0) {
+        const allTxs = db.prepare('SELECT * FROM transactions').all() as any[];
+        if (!allTxs || allTxs.length === 0) {
             return res.status(400).json({ error: 'Nenhuma transação encontrada para análise.' });
         }
 
-        const insights = await analyzeSpending(transactions);
-
-        // Save insights to DB (without deleting old ones to keep history)
-        // We use a single transaction to ensure they all get the same created_at
-        const insertInsight = db.prepare('INSERT INTO ai_insights (content, type) VALUES (?, ?)');
-        const insertMany = db.transaction((consumption: string[], tips: string[]) => {
-            consumption.forEach((c: string) => insertInsight.run(c, 'consumption'));
-            tips.forEach((t: string) => insertInsight.run(t, 'tip'));
+        // Group by month
+        const groups: Record<string, any[]> = {};
+        allTxs.forEach(tx => {
+            const period = tx.date.includes('-') ? tx.date.substring(0, 7) : `${tx.date.split('/')[2]}-${tx.date.split('/')[1]}`;
+            if (!groups[period]) groups[period] = [];
+            groups[period].push(tx);
         });
 
-        insertMany(insights.consumption, insights.tips);
+        const periods = Object.keys(groups).sort();
+        const insertInsight = db.prepare('INSERT INTO ai_insights (period, content, type) VALUES (?, ?, ?)');
 
-        res.json(insights);
+        for (let i = 0; i < periods.length; i++) {
+            const currentPeriod = periods[i];
+            const currentTxs = groups[currentPeriod];
+
+            // Comparative context from previous month
+            let comparativeContext = '';
+            if (i > 0) {
+                const prevPeriod = periods[i - 1];
+                const prevTxs = groups[prevPeriod];
+                const prevSummary: Record<string, number> = {};
+                prevTxs.forEach(t => {
+                    if (t.type === 'saida') {
+                        prevSummary[t.category] = (prevSummary[t.category] || 0) + Math.abs(t.amount);
+                    }
+                });
+                comparativeContext = `Resumo do mês anterior (${prevPeriod}):\n` +
+                    Object.entries(prevSummary).map(([cat, val]) => `- ${cat}: R$ ${val.toFixed(2)}`).join('\n');
+            }
+
+            const insights = await analyzeSpending(currentTxs, comparativeContext);
+
+            // Save insights for this SPECIFIC period
+            db.prepare('DELETE FROM ai_insights WHERE period = ?').run(currentPeriod);
+            const insertMany = db.transaction((consumption: string[], tips: string[]) => {
+                consumption.forEach((c: string) => insertInsight.run(currentPeriod, c, 'consumption'));
+                tips.forEach((t: string) => insertInsight.run(currentPeriod, t, 'tip'));
+            });
+            insertMany(insights.consumption, insights.tips);
+        }
+
+        const allInsights = db.prepare("SELECT * FROM ai_insights ORDER BY created_at DESC").all();
+        res.json(allInsights);
     } catch (error: any) {
         console.error('Erro na análise:', error);
         res.status(500).json({ error: error.message || 'Erro ao processar análise.' });

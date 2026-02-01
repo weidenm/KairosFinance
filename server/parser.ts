@@ -1,6 +1,4 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
+import * as pdfParse from 'pdf-parse';
 import * as xlsx from 'xlsx';
 
 export async function processFile(file: Express.Multer.File): Promise<any[]> {
@@ -27,8 +25,11 @@ async function processOFX(buffer: Buffer): Promise<any[]> {
 }
 
 async function processPDF(buffer: Buffer): Promise<any[]> {
-    // Some versions of pdf-parse in ESM require .default
-    const parse = typeof pdfParse === 'function' ? pdfParse : pdfParse.default;
+    // pdf-parse might need different access depending on environment
+    const parse = (pdfParse as any).default || pdfParse;
+    if (typeof parse !== 'function') {
+        throw new Error('PDF parser component is not a function. Check module loading.');
+    }
     const data = await parse(buffer);
     // Simplificado para envio direto ao GPT para extração estruturada
     return [{ rawText: data.text, source: 'pdf' }];

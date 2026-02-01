@@ -40,12 +40,16 @@ function repairJson(jsonStr: string): string {
     return repaired;
 }
 
-async function processBatch(batch: any[], allowedCategories: string[], retryCount = 0): Promise<any[]> {
+async function processBatch(batch: any[], allowedCategories: string[], historicalMappings: any[], retryCount = 0): Promise<any[]> {
     const prompt = `
     Você é um assistente financeiro. Abaixo estão extratos brutos de bancos ou faturas (texto ou metadados).
     Extraia todas as transações individuais deste lote.
     Para cada transação, identifique: data, descrição, valor (positivo para entrada, negativo para saída), categoria e o arquivo de origem (source_file).
     Categorias permitidas: ${allowedCategories.join(', ')}.
+    ${historicalMappings.length > 0 ? `
+    CONTEXTO HISTÓRICO (Use como sugestão de categoria se a descrição for similar):
+    ${historicalMappings.map(h => `- ${h.description} -> ${h.category}`).join('\n')}
+    ` : ''}
     Retorne APENAS um JSON válido. Não inclua texto explicativo fora do JSON.
     Formato: { "transactions": [ { "date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "category": "...", "type": "entrada/saida", "source_file": "..." } ] }
 
@@ -85,7 +89,7 @@ async function processBatch(batch: any[], allowedCategories: string[], retryCoun
         if (retryCount < 2) {
             // Wait a bit before retry
             await new Promise(resolve => setTimeout(resolve, 1000));
-            return processBatch(batch, allowedCategories, retryCount + 1);
+            return processBatch(batch, allowedCategories, historicalMappings, retryCount + 1);
         }
         // Final fallback: return raw data as "Uncategorized" if AI totally fails
         return batch.map(b => ({
@@ -99,7 +103,7 @@ async function processBatch(batch: any[], allowedCategories: string[], retryCoun
     }
 }
 
-export async function categorizeTransactions(rawInputs: any[], allowedCategories: string[] = ['Alimentação', 'Transporte', 'Moradia', 'Lazer', 'Saúde', 'Educação', 'Compras', 'Outros']) {
+export async function categorizeTransactions(rawInputs: any[], allowedCategories: string[] = ['Alimentação', 'Transporte', 'Moradia', 'Lazer', 'Saúde', 'Educação', 'Compras', 'Outros'], historicalMappings: any[] = []) {
     if (rawInputs.length === 0) return [];
 
     const BATCH_SIZE = 10; // Safer batch size
@@ -108,22 +112,27 @@ export async function categorizeTransactions(rawInputs: any[], allowedCategories
     // Process batches sequentially to avoid rate limiting and ensure order
     for (let i = 0; i < rawInputs.length; i += BATCH_SIZE) {
         const batch = rawInputs.slice(i, i + BATCH_SIZE);
-        const batchResults = await processBatch(batch, allowedCategories);
+        const batchResults = await processBatch(batch, allowedCategories, historicalMappings);
         results.push(...batchResults);
     }
 
     return results;
 }
 
-export async function analyzeSpending(categorizedData: any[]) {
+export async function analyzeSpending(categorizedData: any[], comparativeContext: string = '') {
     const prompt = `
     Analise os seguintes dados financeiros e forneça insights sobre o consumo e dicas de organização financeira.
+    ${comparativeContext ? `
+    CONTEXTO COMPARATIVO (Mês anterior):
+    ${comparativeContext}
+    Compare o desempenho atual com o anterior se identificar tendências relevantes.
+    ` : ''}
     Retorne APENAS um JSON no formato: { 
         "consumption": ["insight 1", "insight 2", ...], 
         "tips": ["dica 1", "dica 2", ...] 
     }
     Seja prático e direto.
-    Dados:
+    Dados do Mês Atual:
     ${JSON.stringify(categorizedData)}
   `;
 

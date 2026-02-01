@@ -1,105 +1,78 @@
 # Kairos Finance 🚀
-Seu assistente financeiro inteligente com persistência local e IA.
 
-Agente de análise de dados financeiros que processa extratos bancários e faturas (PDF, CSV, XLSX, Imagens) usando IA para categorizar transações, gerar insights e gerenciar suas finanças de forma privada e eficiente.
+**Efficiently manage your finances with AI and privacy in mind.**  
+*Gerencie suas finanças com eficiência, IA e total privacidade.*
 
 ---
 
-## ✨ Funcionalidades Premium
+## 🇺🇸 English Version
 
-### 📁 Inteligência e Processamento
-- **Análise Multi-formato**: Processamento automático de PDFs, CSVs e fotos de comprovantes.
-- **Categorização Adaptável**: IA inteligente que aprende e usa suas categorias personalizadas.
-- **Rastreabilidade**: Todas as transações registram o arquivo de origem para sua segurança.
+Kairos Finance is an intelligent financial data analysis agent designed to process bank statements and invoices (PDF, CSV, XLSX, and images). It uses AI to categorize transactions, generate insights, and manage your finances locally and securely.
+
+### ✨ Key Features
+- **Local-First (SQLite)**: Your financial data never leaves your machine.
+- **AI-Powered Categorization**: Intelligent classification that learns from your custom categories.
+- **Multi-Format Processing**: Support for PDFs, CSVs, Excel files, and receipt photos.
+- **Glassmorphism UI**: A premium, modern dashboard with interactive charts and real-time editing.
+- **Actionable Insights**: AI-generated suggestions for savings and consumption analysis.
+- **Recruiter's Highlight**: Built with **React 19**, **Vite**, **Express**, and **better-sqlite3**.
+
+### 🛠️ Tech Stack
+- **Frontend**: React 19, TypeScript, Recharts, Lucide-React, CSS Glassmorphism.
+- **Backend**: Node.js, Express, `better-sqlite3`, Multer, PDF-parse, SheetJS.
+- **AI**: OpenAI / Perplexity API integration.
+
+### 🚀 Getting Started
+1. **Clone & Install**:
+   ```bash
+   git clone <repository-url>
+   cd KairosFinance
+   npm install
+   ```
+2. **Environment Variables**: Create a `.env` file with `PERPLEXITY_API_KEY` or `OPENAI_API_KEY`.
+3. **Run**:
+   ```bash
+   npm run dev:all
+   ```
+
+---
+
+## 🇧🇷 Versão em Português
+
+Kairos Finance é um assistente financeiro inteligente que processa extratos bancários e faturas (PDF, CSV, XLSX e imagens) usando IA para categorizar transações e gerar insights de forma privada e eficiente.
+
+### ✨ Funcionalidades Principais
+- **Local-First (SQLite)**: Seus dados permanecem na sua máquina em um banco de dados local.
+- **Categorização com IA**: IA inteligente que aprende e usa suas categorias personalizadas.
+- **Processamento Multi-formato**: Suporte para PDFs, CSVs, Excel e fotos de comprovantes.
+- **Design Glassmorphism**: Interface moderna com transparências e gráficos interativos.
 - **Insights Contextuais**: Sugestões de economia e análise de consumo geradas por IA.
+- **Destaque para Recrutadores**: Desenvolvido com **React 19**, **TypeScript**, **Node.js** e integração com **LLMs**.
 
-### 💾 Persistência e Privacidade
-- **Local-First (SQLite)**: Seus dados permanecem na sua máquina em um banco de dados ACID compatível.
-- **Auto-loading**: A aplicação inicia instantaneamente carregando seus dados salvos.
-- **Gestão de Contas**: Suporte para múltiplas contas bancárias (Ex: Nubank, Itaú, Santander).
-- **CRUD de Categorias**: Controle total sobre a lista de categorias disponíveis.
+### 🛠️ Tecnologias
+- **Frontend**: React 19, TypeScript, Recharts, Lucide-React.
+- **Backend**: Node.js, Express, `better-sqlite3`, Multer.
+- **IA**: Integração com APIs da OpenAI / Perplexity.
 
-### 🎨 Experiência do Usuário (UI/UX)
-- **Glassmorphism Design**: Interface moderna com transparências, desfoque de fundo e sombras suaves.
-- **Dashboard Interativo**: Gráficos dinâmicos (Barra e Pizza) com filtros por categoria.
-- **Edição em Tempo Real**: Altere descrições e categorias de transações diretamente no painel.
-- **Exportação**: Relatórios profissionais em Excel e PDF com um clique.
-
----
-
-## 📋 Pré-requisitos
-
-- [Node.js](https://nodejs.org/) (v18+)
-- [npm](https://www.npmjs.com/) ou [yarn](https://yarnpkg.com/)
-
-## ⚙️ Configuração
-
-1.  **Clone o repositório:**
-    ```bash
-    git clone <url-do-repositorio>
-    cd KairosFinance
-    ```
-
-2.  **Instale as dependências:**
-    ```bash
-    npm install
-    ```
-
-3.  **Variáveis de Ambiente:**
-    Crie um arquivo `.env` na raiz:
-    ```env
-    PERPLEXITY_API_KEY=sua_chave_aqui
-    PORT=3001
-    ```
-
-## 🚀 Executando o Projeto
-
-Execute ambos os servidores (Frontend e Backend) simultaneamente:
-```bash
-npm run dev:all
-```
-
-### Executar apenas o Frontend (Vite)
-```bash
-npm run dev
-```
-O frontend estará disponível em `http://localhost:5173`.
-
-### Executar apenas o Backend (Servidor Node.js)
-```bash
-npm run server
-```
-O backend estará rodando em `http://localhost:3001`.
-
-## 🧪 Testes
-
-### Executando Testes
-Atualmente, o projeto está em fase inicial de estruturação de testes. Para rodar o linter e verificar erros de código:
-```bash
-npm run lint
-```
-
-### Sugestões de Teste Manual
-1. Inicie o projeto com `npm run dev:all`.
-2. Acesse `http://localhost:5173`.
-3. Faça o upload de um arquivo de extrato (PDF ou imagem).
-4. Verifique se as transações são extraídas e categorizadas corretamente no dashboard.
-
-## 🛠️ Tecnologias
-
-- **Frontend:** React 18, TypeScript, Recharts, Lucide-React, CSS Glassmorphism.
-- **Backend:** Node.js, Express, `better-sqlite3`, Multer, PDF-parse.
-- **IA:** Perplexity AI / OpenAI para reconhecimento de transações e análise financeira.
+### 🚀 Como Executar
+1. **Clone e Instalação**:
+   ```bash
+   git clone <url-do-repositorio>
+   cd KairosFinance
+   npm install
+   ```
+2. **Variáveis de Ambiente**: Configure sua chave de API no arquivo `.env`.
+3. **Execução**:
+   ```bash
+   npm run dev:all
+   ```
 
 ---
 
-## 🆘 Solução de Problemas (Windows)
-
-Se a execução de scripts estiver desabilitada no PowerShell, execute no terminal como Administrador:
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
+## 🏛️ Architecture
+For detailed technical documentation, please refer to [README_2.md](./README_2.md).  
+*Para documentação técnica detalhada, consulte o [README_2.md](./README_2.md).*
 
 ---
-
-Desenvolvido para transformar sua organização financeira com o poder da IA. 💎
+Developed to transform financial organization with the power of AI. 💎  
+*Desenvolvido para transformar sua organização financeira com o poder da IA.*

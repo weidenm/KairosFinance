@@ -18,14 +18,15 @@ interface Transaction {
     account_name?: string;
 }
 
-interface Insights {
-    consumption: string[];
-    tips: string[];
+interface Insight {
+    period: string;
+    content: string;
+    type: 'consumption' | 'tip';
 }
 
 interface DashboardProps {
     transactions: Transaction[];
-    insights: Insights;
+    insights: Insight[];
     categories: { id: number, name: string }[];
     onUpdateTransactions: (transactions: Transaction[]) => void;
     onUpdateCategories: () => void;
@@ -42,9 +43,12 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
     const [editCategory, setEditCategory] = useState('');
+    const [selectedType, setSelectedType] = useState<'entrada' | 'saida' | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+
+    const EXCLUDED_CATEGORIES = ['Transferência', 'Pagamento de Cartão'];
 
     // Get unique months from transactions for the filter
     const availableMonths = React.useMemo(() => {
@@ -107,11 +111,12 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
             }
 
             if (tMonth < selectedMonth) {
+                if (EXCLUDED_CATEGORIES.includes(t.category)) return acc;
                 return acc + (t.type === 'entrada' ? t.amount : -Math.abs(t.amount));
             }
             return acc;
         }, 0);
-    }, [transactions, selectedMonth]);
+    }, [transactions, selectedMonth, EXCLUDED_CATEGORIES]);
 
     React.useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -134,12 +139,21 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
     })).sort((a, b) => b.value - a.value);
 
     const totalExpense = filteredByMonthAndBankTransactions
-        .filter(t => t.type === 'saida')
+        .filter(t => t.type === 'saida' && !EXCLUDED_CATEGORIES.includes(t.category))
         .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
     const totalIncome = filteredByMonthAndBankTransactions
-        .filter(t => t.type === 'entrada')
+        .filter(t => t.type === 'entrada' && !EXCLUDED_CATEGORIES.includes(t.category))
         .reduce((sum, t) => sum + t.amount, 0);
+
+    const monthInsights = React.useMemo(() => {
+        if (!selectedMonth) return { consumption: [], tips: [] };
+        const filtered = insights.filter(i => i.period === selectedMonth);
+        return {
+            consumption: filtered.filter(f => f.type === 'consumption').map(f => f.content),
+            tips: filtered.filter(f => f.type === 'tip').map(f => f.content)
+        };
+    }, [insights, selectedMonth]);
 
     const handleEditSave = async (id: number) => {
         try {
@@ -227,14 +241,22 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
         doc.save(`Relatorio_Financeiro_${selectedMonth || 'Geral'}_${selectedBank || 'Todos_Bancos'}.pdf`);
     };
 
-    const openDetails = (category: string | null = null) => {
+    const openDetails = (category: string | null = null, type: 'entrada' | 'saida' | null = null) => {
         setSelectedCategory(category);
+        setSelectedType(type);
         setIsModalOpen(true);
     };
 
-    const filteredTransactionsForDetails = selectedCategory
-        ? filteredByMonthAndBankTransactions.filter(t => t.category === selectedCategory)
-        : filteredByMonthAndBankTransactions;
+    const filteredTransactionsForDetails = React.useMemo(() => {
+        let filtered = filteredByMonthAndBankTransactions;
+        if (selectedCategory) {
+            filtered = filtered.filter(t => t.category === selectedCategory);
+        }
+        if (selectedType) {
+            filtered = filtered.filter(t => t.type === selectedType);
+        }
+        return filtered;
+    }, [filteredByMonthAndBankTransactions, selectedCategory, selectedType]);
 
     return (
         <div className="dashboard-content">
@@ -295,13 +317,13 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                         R$ {previousBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h2>
                 </div>
-                <div className="glass-card clickable" onClick={() => openDetails()}>
+                <div className="glass-card clickable" onClick={() => openDetails(null, 'entrada')}>
                     <p className="text-muted text-sm mb-1">Entradas no Mês</p>
                     <h2 className="text-2xl font-bold text-success">
                         R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h2>
                 </div>
-                <div className="glass-card clickable" onClick={() => openDetails()}>
+                <div className="glass-card clickable" onClick={() => openDetails(null, 'saida')}>
                     <p className="text-muted text-sm mb-1">Saídas no Mês</p>
                     <h2 className="text-2xl font-bold text-danger">
                         R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -383,7 +405,7 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                         <h3 className="text-lg font-bold">Insights de Consumo</h3>
                     </div>
                     <ul className="space-y-3">
-                        {(insights?.consumption || []).map((item, i) => (
+                        {(monthInsights.consumption).map((item, i) => (
                             <li key={i} className="text-sm border-l-2 border-accent pl-3 py-1">{item}</li>
                         ))}
                     </ul>
@@ -394,7 +416,7 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                         <h3 className="text-lg font-bold">Dicas de Organização</h3>
                     </div>
                     <ul className="space-y-3">
-                        {(insights?.tips || []).map((item, i) => (
+                        {(monthInsights.tips).map((item, i) => (
                             <li key={i} className="text-sm border-l-2 border-success pl-3 py-1">{item}</li>
                         ))}
                     </ul>

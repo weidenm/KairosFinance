@@ -11,6 +11,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [accountName, setAccountName] = useState('');
     const [existingAccounts, setExistingAccounts] = useState<{ id: number, name: string }[]>([]);
+    const [potentialDuplicates, setPotentialDuplicates] = useState<any[]>([]);
 
     React.useEffect(() => {
         const fetchAccounts = async () => {
@@ -71,12 +72,22 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
         if (overwrite) {
             formData.append('overwrite', 'true');
         }
+        if (potentialDuplicates.length > 0) {
+            formData.append('confirmedUnique', 'true');
+        }
 
         try {
             const response = await axios.post('http://localhost:3001/api/upload', formData);
+
+            if (response.data.potentialDuplicates && response.data.potentialDuplicates.length > 0 && potentialDuplicates.length === 0) {
+                setPotentialDuplicates(response.data.potentialDuplicates);
+                return;
+            }
+
             onDataReceived(response.data);
             setFiles([]);
             setAccountName('');
+            setPotentialDuplicates([]);
         } catch (error) {
             console.error('Erro no upload:', error);
             alert('Erro ao processar arquivos. Verifique se o servidor está rodando.');
@@ -144,6 +155,48 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
                     >
                         {isUploading ? 'Processando com IA...' : 'Analisar Comprovantes'}
                     </button>
+                </div>
+            )}
+
+            {potentialDuplicates.length > 0 && (
+                <div className="modal-overlay">
+                    <div className="modal-content glass-card max-w-lg w-full">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-bold text-accent mb-2">Possíveis Duplicatas Detectadas</h3>
+                            <p className="text-sm opacity-70">As seguintes transações já existem nesta conta com a mesma data e valor:</p>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
+                            {potentialDuplicates.map((tx, i) => (
+                                <div key={i} className="p-3 bg-white/5 rounded-lg text-xs">
+                                    <div className="flex justify-between font-bold">
+                                        <span>{tx.date}</span>
+                                        <span className={tx.type === 'saida' ? 'text-danger' : 'text-success'}>
+                                            R$ {Math.abs(tx.amount).toLocaleString('pt-BR')}
+                                        </span>
+                                    </div>
+                                    <div className="opacity-70">{tx.description}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => uploadFiles()}
+                                className="btn-primary flex-1 py-2 font-bold"
+                            >
+                                Confirmar e Importar Tudo
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setPotentialDuplicates([]);
+                                    setFiles([]);
+                                    setAccountName('');
+                                }}
+                                className="btn-secondary flex-1 py-2"
+                            >
+                                Cancelar Importação
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
