@@ -88,9 +88,32 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
             setFiles([]);
             setAccountName('');
             setPotentialDuplicates([]);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Erro no upload:', error);
-            alert('Erro ao processar arquivos. Verifique se o servidor está rodando.');
+            const errorMessage = error.response?.data?.error;
+
+            switch (errorMessage) {
+                case 'PDF_PASSWORD_PROTECTED':
+                    alert('Não foi possível importar o PDF porque ele está protegido por senha.');
+                    break;
+                case 'PDF_INVALID_FORMAT':
+                    alert('Não foi possível importar o PDF. O arquivo pode estar corrompido ou em um formato não suportado.');
+                    break;
+                case 'FILE_READ_ERROR':
+                    alert('Erro ao ler o arquivo. Certifique-se de que ele não está aberto em outro programa e tente novamente.');
+                    break;
+                case 'XLSX_INVALID_FORMAT':
+                    alert('Erro ao processar o arquivo Excel. Verifique se o formato está correto.');
+                    break;
+                case 'OFX_INVALID_FORMAT':
+                    alert('Erro ao processar o arquivo OFX. Verifique se o formato está correto.');
+                    break;
+                case 'UNSUPPORTED_FORMAT':
+                    alert('Formato de arquivo não suportado.');
+                    break;
+                default:
+                    alert('Erro ao processar arquivos. Verifique se o servidor está rodando ou tente novamente.');
+            }
         } finally {
             setIsUploading(false);
         }
@@ -122,14 +145,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onDataReceived }) => {
             >
                 <Upload className="mx-auto mb-4" size={48} color="var(--primary)" />
                 <h3 className="text-xl font-bold mb-2">Arraste seus comprovantes ou clique aqui</h3>
-                <p className="text-muted">Suporta PDF, CSV, XLSX, OFX e Imagens</p>
+                <p className="text-muted">Suporta PDF, CSV, XLSX, OFX, TXT e Imagens</p>
                 <input
                     id="file-input"
                     type="file"
                     multiple
                     hidden
                     onChange={handleFileChange}
-                    accept=".pdf,.csv,.xlsx,.ofx,image/*"
+                    accept=".pdf,.csv,.xlsx,.ofx,.txt,image/*"
                 />
             </div>
 
