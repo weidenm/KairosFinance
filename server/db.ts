@@ -36,6 +36,7 @@ db.exec(`
         category TEXT,
         type TEXT,
         source_file TEXT,
+        original_date TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (account_id) REFERENCES accounts(id)
     );
@@ -52,6 +53,11 @@ db.exec(`
 // Migration for existing databases
 try {
     db.exec(`ALTER TABLE transactions ADD COLUMN source_file TEXT;`);
+} catch (e) {
+    // Column might already exist
+}
+try {
+    db.exec(`ALTER TABLE transactions ADD COLUMN original_date TEXT;`);
 } catch (e) {
     // Column might already exist
 }

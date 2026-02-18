@@ -160,6 +160,53 @@ app.put('/api/transactions/:id', (req, res) => {
     }
 });
 
+function adjustCreditCardDates(transactions: any[], accountName: string): any[] {
+    const creditKeywords = ['fatura', 'cartão', 'cartao', 'credit', 'card'];
+
+    // Always preserve the original date for all transactions
+    for (const tx of transactions) {
+        tx.original_date = tx.date || null;
+    }
+
+    // Group by source_file
+    const byFile: Record<string, any[]> = {};
+    for (const tx of transactions) {
+        const key = tx.source_file || 'unknown';
+        if (!byFile[key]) byFile[key] = [];
+        byFile[key].push(tx);
+    }
+
+    for (const [filename, fileTxs] of Object.entries(byFile)) {
+        const isCreditCard = creditKeywords.some(kw =>
+            filename.toLowerCase().includes(kw) ||
+            accountName.toLowerCase().includes(kw)
+        );
+        if (!isCreditCard) continue;
+
+        // Determine statement month (most frequent month)
+        const monthCounts: Record<string, number> = {};
+        for (const tx of fileTxs) {
+            if (!tx.date) continue;
+            const month = tx.date.substring(0, 7); // "YYYY-MM"
+            monthCounts[month] = (monthCounts[month] || 0) + 1;
+        }
+        const statementMonth = Object.entries(monthCounts)
+            .sort((a, b) => b[1] - a[1])[0]?.[0];
+        if (!statementMonth) continue;
+
+        // Adjust dates earlier than the statement month
+        for (const tx of fileTxs) {
+            if (!tx.date) continue;
+            const txMonth = tx.date.substring(0, 7);
+            if (txMonth < statementMonth) {
+                tx.date = `${statementMonth}-01`;
+            }
+        }
+    }
+
+    return transactions;
+}
+
 app.post('/api/upload', upload.array('files'), async (req, res) => {
     try {
         const files = req.files as Express.Multer.File[];
@@ -208,7 +255,10 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         `).all();
 
         const allowedCategories = db.prepare('SELECT name FROM categories').all().map((c: any) => c.name);
-        const categorizedTransactions = await categorizeTransactions(allTransactions, allowedCategories, historicalMappings);
+        let categorizedTransactions = await categorizeTransactions(allTransactions, allowedCategories, historicalMappings);
+
+        // Adjust dates for credit card installment purchases and preserve original dates
+        categorizedTransactions = adjustCreditCardDates(categorizedTransactions, accountName);
 
         // Check for potential duplicates in the DB
         const confirmedUnique = req.body.confirmedUnique === 'true' || req.body.confirmedUnique === true;
@@ -235,10 +285,10 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         }
 
         // Save transactions to DB
-        const insertTx = db.prepare('INSERT INTO transactions (account_id, date, description, amount, category, type, source_file) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const insertTx = db.prepare('INSERT INTO transactions (account_id, date, original_date, description, amount, category, type, source_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
         const transaction = db.transaction((txs) => {
             for (const tx of txs) {
-                insertTx.run(account!.id, tx.date, tx.description, tx.amount, tx.category, tx.type, tx.source_file);
+                insertTx.run(account!.id, tx.date, tx.original_date, tx.description, tx.amount, tx.category, tx.type, tx.source_file);
             }
         });
         transaction(categorizedTransactions);
