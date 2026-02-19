@@ -62,12 +62,12 @@ function App() {
 
   return (
     <div className="dashboard-container">
-      <header className="header glass-card" style={{ marginBottom: '3rem', padding: '1rem 2rem' }}>
+      <header className="header glass-card" style={{ marginBottom: '2rem', padding: '1rem 1.5rem' }}>
         <div>
           <h1 className="title" style={{ margin: 0 }}>Kairos Finance</h1>
-          <p className="text-muted" style={{ margin: 0 }}>Seu assistente financeiro inteligente</p>
+          <p className="text-muted" style={{ margin: 0, fontSize: '0.875rem' }}>Seu assistente financeiro inteligente</p>
         </div>
-        <div className="flex gap-4 items-center">
+        <div className="flex gap-4 items-center" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {data && !showUpload && (
             <button
               onClick={() => setShowUpload(true)}

@@ -260,57 +260,61 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
 
     return (
         <div className="dashboard-content">
-            <div className="flex-between mb-6">
+            <div className="dashboard-header">
                 <h2 className="text-xl font-bold">Resumo Financeiro</h2>
-                <div className="flex gap-2 items-center">
-                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 mr-2">
-                        <Calendar size={16} className="text-primary" />
-                        <select
-                            className="bg-transparent border-none outline-none text-sm font-medium cursor-pointer"
-                            value={selectedMonth}
-                            onChange={(e) => setSelectedMonth(e.target.value)}
-                        >
-                            <option value="" className="bg-slate-800">Todos os Meses</option>
-                            {availableMonths.map(month => {
-                                const [year, m] = month.split('-');
-                                const date = new Date(parseInt(year), parseInt(m) - 1);
-                                const monthName = date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-                                return (
-                                    <option key={month} value={month} className="bg-slate-800">
-                                        {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
+                <div className="dashboard-toolbar">
+                    <div className="toolbar-filters">
+                        <div className="filter-select">
+                            <Calendar size={16} className="text-primary" />
+                            <select
+                                className="bg-transparent border-none outline-none text-sm font-medium cursor-pointer"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                            >
+                                <option value="" className="bg-slate-800">Todos os Meses</option>
+                                {availableMonths.map(month => {
+                                    const [year, m] = month.split('-');
+                                    const date = new Date(parseInt(year), parseInt(m) - 1);
+                                    const monthName = date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+                                    return (
+                                        <option key={month} value={month} className="bg-slate-800">
+                                            {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+                        <div className="filter-select">
+                            <Building2 size={16} className="text-secondary" />
+                            <select
+                                className="bg-transparent border-none outline-none text-sm font-medium cursor-pointer"
+                                value={selectedBank}
+                                onChange={(e) => setSelectedBank(e.target.value)}
+                            >
+                                <option value="" className="bg-slate-800">Todos os Bancos</option>
+                                {availableBanks.map(bank => (
+                                    <option key={bank} value={bank} className="bg-slate-800">
+                                        {bank}
                                     </option>
-                                );
-                            })}
-                        </select>
+                                ))}
+                            </select>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 mr-2">
-                        <Building2 size={16} className="text-secondary" />
-                        <select
-                            className="bg-transparent border-none outline-none text-sm font-medium cursor-pointer"
-                            value={selectedBank}
-                            onChange={(e) => setSelectedBank(e.target.value)}
-                        >
-                            <option value="" className="bg-slate-800">Todos os Bancos</option>
-                            {availableBanks.map(bank => (
-                                <option key={bank} value={bank} className="bg-slate-800">
-                                    {bank}
-                                </option>
-                            ))}
-                        </select>
+                    <div className="toolbar-actions">
+                        <button onClick={exportToExcel} className="btn-secondary flex-center gap-2">
+                            <Download size={16} /> Excel
+                        </button>
+                        <button onClick={exportToPDF} className="btn-secondary flex-center gap-2">
+                            <Download size={16} /> PDF
+                        </button>
+                        <button onClick={() => setIsCategoryModalOpen(true)} className="btn-secondary flex-center gap-2">
+                            <Edit2 size={16} /> Categorias
+                        </button>
                     </div>
-                    <button onClick={exportToExcel} className="btn-secondary flex-center gap-2">
-                        <Download size={16} /> Excel
-                    </button>
-                    <button onClick={exportToPDF} className="btn-secondary flex-center gap-2">
-                        <Download size={16} /> PDF
-                    </button>
-                    <button onClick={() => setIsCategoryModalOpen(true)} className="btn-secondary flex-center gap-2">
-                        <Edit2 size={16} /> Categorias
-                    </button>
                 </div>
             </div>
 
-            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            <div className="stats-grid">
                 <div className="glass-card">
                     <p className="text-muted text-sm mb-1">Saldo Anterior</p>
                     <h2 className="text-2xl font-bold" style={{ color: previousBalance >= 0 ? 'var(--text-main)' : 'var(--danger)' }}>
@@ -338,16 +342,25 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
             </div>
 
             <div className="chart-section">
-                <div className="glass-card h-80">
+                <div className="glass-card chart-card">
                     <h3 className="text-lg font-bold mb-4">Gasto por Categoria</h3>
-                    <ResponsiveContainer width="100%" height="90%">
-                        <BarChart data={chartData} onClick={(e) => e && e.activeLabel && openDetails(String(e.activeLabel))}>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={chartData} onClick={(e) => e && e.activeLabel && openDetails(String(e.activeLabel))} margin={{ top: 5, right: 20, left: 10, bottom: 60 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                            <XAxis dataKey="name" stroke="var(--text-muted)" />
-                            <YAxis stroke="var(--text-muted)" />
+                            <XAxis
+                                dataKey="name"
+                                stroke="var(--text-muted)"
+                                angle={-35}
+                                textAnchor="end"
+                                tick={{ fontSize: 11 }}
+                                interval={0}
+                                height={70}
+                            />
+                            <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
                             <Tooltip
                                 contentStyle={{ background: 'var(--card-bg)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                                 itemStyle={{ color: 'var(--text-main)' }}
+                                formatter={(value: number | string | undefined) => [`R$ ${Number(value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Valor']}
                             />
                             <Bar
                                 dataKey="value"
@@ -359,17 +372,17 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                     </ResponsiveContainer>
                 </div>
 
-                <div className="glass-card h-80">
+                <div className="glass-card chart-card">
                     <h3 className="text-lg font-bold mb-4">Distribuição</h3>
-                    <ResponsiveContainer width="100%" height="90%">
+                    <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
                             <Pie
                                 data={chartData}
-                                cx="50%"
+                                cx="40%"
                                 cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
-                                paddingAngle={5}
+                                innerRadius={50}
+                                outerRadius={75}
+                                paddingAngle={4}
                                 dataKey="value"
                                 onClick={(e) => openDetails(e.name)}
                             >
@@ -379,8 +392,22 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                             </Pie>
                             <Tooltip
                                 contentStyle={{ background: 'var(--card-bg)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                                formatter={(value: number | string | undefined) => [`R$ ${Number(value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Valor']}
                             />
-                            <Legend verticalAlign="bottom" height={36} />
+                            <Legend
+                                layout="vertical"
+                                verticalAlign="middle"
+                                align="right"
+                                wrapperStyle={{
+                                    maxHeight: '260px',
+                                    overflowY: 'auto',
+                                    fontSize: '12px',
+                                    paddingLeft: '8px',
+                                    right: 0,
+                                    width: '40%'
+                                }}
+                                iconSize={10}
+                            />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
@@ -448,16 +475,16 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                             <div className="space-y-3">
                                 {filteredTransactionsForDetails.map((t) => (
                                     <div key={t.id} className="transaction-item hover:bg-white/5 rounded-lg border-none px-4">
-                                        <div className="flex-1">
+                                        <div className="transaction-info">
                                             {editingId === t.id ? (
-                                                <div className="flex flex-col gap-2 mb-1">
+                                                <div className="transaction-edit">
                                                     <input
                                                         autoFocus
                                                         className="bg-white/10 border border-white/20 rounded px-2 py-1 flex-1 text-sm outline-none"
                                                         value={editValue}
                                                         onChange={(e) => setEditValue(e.target.value)}
                                                     />
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap' }}>
                                                         <select
                                                             className="bg-slate-800 border border-white/20 rounded px-2 py-1 text-xs outline-none cursor-pointer"
                                                             value={editCategory}
@@ -472,28 +499,30 @@ const Dashboard: React.FC<DashboardProps & { onRefreshInsights: () => void }> = 
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center gap-2 group">
-                                                    <p className="font-bold">{t.description}</p>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (t.id) {
-                                                                setEditingId(t.id);
-                                                                setEditValue(t.description);
-                                                                setEditCategory(t.category);
-                                                            }
-                                                        }}
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:text-accent"
-                                                        title="Editar"
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => t.id && handleDelete(t.id)}
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:text-danger"
-                                                        title="Excluir"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                <div className="transaction-desc-row group">
+                                                    <p className="transaction-description">{t.description}</p>
+                                                    <div className="transaction-actions">
+                                                        <button
+                                                            onClick={() => {
+                                                                if (t.id) {
+                                                                    setEditingId(t.id);
+                                                                    setEditValue(t.description);
+                                                                    setEditCategory(t.category);
+                                                                }
+                                                            }}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:text-accent"
+                                                            title="Editar"
+                                                        >
+                                                            <Edit2 size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => t.id && handleDelete(t.id)}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:text-danger"
+                                                            title="Excluir"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                             <p className="text-xs text-muted">{t.date} • {t.category}</p>

@@ -1,6 +1,7 @@
 :root {
   --primary: #6366f1;
   --primary-hover: #4f46e5;
+  --secondary: #22d3ee;
   --bg-dark: #0f172a;
   --card-bg: rgba(30, 41, 59, 0.7);
   --text-main: #f8fafc;
@@ -18,12 +19,16 @@ body {
   overflow-x: hidden;
 }
 
+/* ===== Layout Container ===== */
 .dashboard-container {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 2rem auto;
-  padding: 0 1rem;
+  padding: 0 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* ===== Glass Card ===== */
 .glass-card {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(20px) saturate(180%);
@@ -41,11 +46,14 @@ body {
   border-color: rgba(255, 255, 255, 0.15);
 }
 
+/* ===== Header ===== */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .title {
@@ -55,28 +63,82 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  white-space: nowrap;
 }
 
+/* ===== Dashboard Header (Resumo + Toolbar) ===== */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.filter-select select {
+  color: var(--text-main);
+}
+
+/* ===== Stats Grid ===== */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
+/* ===== Chart Section ===== */
 .chart-section {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1.5fr 1fr;
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
-@media (max-width: 768px) {
-  .chart-section {
-    grid-template-columns: 1fr;
-  }
+.chart-card {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
 }
 
+.chart-card .recharts-responsive-container {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ===== Upload Zone ===== */
 .upload-zone {
   border: 2px dashed var(--primary);
   border-radius: 1rem;
@@ -92,6 +154,7 @@ body {
   border-color: var(--accent);
 }
 
+/* ===== Transactions ===== */
 .transaction-list {
   margin-top: 2rem;
 }
@@ -100,14 +163,71 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
+  padding: 0.875rem 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 1rem;
+  min-width: 0;
 }
 
+.transaction-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.transaction-desc-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.transaction-description {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+}
+
+.transaction-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.transaction-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.amount {
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.amount.negative {
+  color: var(--danger);
+}
+
+.amount.positive {
+  color: var(--success);
+}
+
+/* ===== Utility Classes ===== */
 .flex-between {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .flex-center {
@@ -132,12 +252,12 @@ body {
   gap: 1rem;
 }
 
-.mb-6 {
-  margin-bottom: 1.5rem;
+.mb-4 {
+  margin-bottom: 1rem;
 }
 
-.h-80 {
-  height: 20rem;
+.mb-6 {
+  margin-bottom: 1.5rem;
 }
 
 .cursor-pointer {
@@ -161,6 +281,7 @@ body {
   transform: scale(0.98);
 }
 
+/* ===== Buttons ===== */
 .btn-secondary {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -169,6 +290,7 @@ body {
   border-radius: 0.5rem;
   font-size: 0.875rem;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .btn-secondary:hover {
@@ -176,13 +298,30 @@ body {
   border-color: var(--primary);
 }
 
+.btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--danger);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* ===== Insights Grid ===== */
 .insights-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
+/* ===== Modals ===== */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -200,8 +339,8 @@ body {
   animation: modalScale 0.3s ease-out;
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
-  /* Ocupa até 90% da altura da tela */
+  max-height: 85vh;
+  max-width: 95vw;
 }
 
 .modal-body {
@@ -210,7 +349,7 @@ body {
   padding-right: 0.5rem;
 }
 
-/* Custom scrollbar para o modal */
+/* Custom scrollbar for modal */
 .modal-body::-webkit-scrollbar {
   width: 6px;
 }
@@ -236,15 +375,106 @@ body {
   }
 }
 
-.amount {
-  font-weight: 600;
-  white-space: nowrap;
+/* =============== RESPONSIVE BREAKPOINTS =============== */
+
+/* Large tablets and small desktops */
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chart-section {
+    grid-template-columns: 1fr;
+  }
 }
 
-.amount.negative {
-  color: var(--danger);
+/* Tablets */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 0 1rem;
+    margin: 1rem auto;
+  }
+
+  .header {
+    padding: 1rem !important;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dashboard-toolbar {
+    justify-content: flex-start;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .chart-section {
+    grid-template-columns: 1fr;
+  }
+
+  .insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .glass-card {
+    padding: 1.25rem;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    margin: 0.5rem;
+    border-radius: 1rem;
+  }
 }
 
-.amount.positive {
-  color: var(--success);
+/* Phones */
+@media (max-width: 480px) {
+  .dashboard-container {
+    padding: 0 0.75rem;
+    margin: 0.5rem auto;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .glass-card {
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+
+  .filter-select {
+    width: 100%;
+  }
+
+  .toolbar-filters {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .btn-secondary {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .transaction-description {
+    max-width: 180px;
+  }
 }

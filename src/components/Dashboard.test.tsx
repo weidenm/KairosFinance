@@ -8,10 +8,10 @@ const mockTransactions = [
     { id: 3, date: '2026-02-01', description: 'Bônus', amount: 1000, category: 'Salário', type: 'entrada' as const, account_name: 'Bank B' },
 ];
 
-const mockInsights = {
-    consumption: ['Gasto alto em moradia'],
-    tips: ['Tente economizar no lazer'],
-};
+const mockInsights = [
+    { period: '2026-02', content: 'Gasto alto em moradia', type: 'consumption' as const },
+    { period: '2026-02', content: 'Tente economizar no lazer', type: 'tip' as const },
+];
 
 const mockCategories = [
     { id: 1, name: 'Salário' },
